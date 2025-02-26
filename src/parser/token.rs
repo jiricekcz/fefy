@@ -8,7 +8,7 @@ pub(crate) enum Token {
     BoolLiteral(bool),
     Plus,
     Minus,
-    Star,
+    Asterisk,
     Slash,
     DoubleSlash,
     Backslash,
