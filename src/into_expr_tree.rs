@@ -90,9 +90,16 @@ pub(crate) fn into_expr_tree(
     }
 
     // Unary operators + expr check - they have the highest precedence
-
+    let mut expecting = Expecting::Operand;
+    let mut unary_operator_read: Option<Operator> = None;
+    for i in 0..symbols.len() {}
     // Binary operators - they have the second highest precedence (no others are defined)
     todo!()
+}
+
+enum Expecting {
+    Operator,
+    Operand,
 }
 
 pub(crate) enum Symbol {
