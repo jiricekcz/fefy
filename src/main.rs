@@ -12,6 +12,8 @@ fn main() -> Result<()> {
     let input_chars = input.chars();
     let mut tokens = parser::Tokens::new(input_chars);
 
+    println!("Tokenized.");
+
     let mut variable_names: Vec<String> = Vec::new();
     let expr_tree = into_expr_tree(&mut tokens, &mut variable_names, false)?;
     println!("Expression tree: {:?}", expr_tree);

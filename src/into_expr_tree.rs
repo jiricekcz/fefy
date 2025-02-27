@@ -22,16 +22,13 @@ pub(crate) fn into_expr_tree(
         .into_iter()
         .map(|s| Some(s))
         .collect::<Vec<_>>();
-    println!("Symbols {:?}", symbols);
 
     // Removes all unary operators by composing them with their operands
     compose_unary_expressions(&mut symbols)?;
-    println!("Symbols after unary expressions {:?}", symbols);
     // Covert infix notation to postfix notation
-    let postfix_symbols =
-        shunting_yard_algorithm(symbols.into_iter().map(|o| o.expect("Cleaned")).collect())?;
+    let clean_symbols = symbols.into_iter().map(|o| o.expect("Cleaned")).collect();
 
-    println!("Postfix symbols {:?}", postfix_symbols);
+    let postfix_symbols = shunting_yard_algorithm(clean_symbols)?;
 
     let expr = compose_binary_expressions(postfix_symbols.into_iter())?;
 
@@ -175,6 +172,7 @@ fn compose_unary_expressions(symbols: &mut Vec<Option<ParsedSymbol>>) -> Result<
             },
         }
     }
+
     Ok(to_cleaned_symbols(symbols))
 }
 
@@ -227,7 +225,7 @@ fn compose_binary_expressions(
         if let Some(add) = add {
             stack.push(add);
         }
-        if let Some(ExpressionInProgress::LHS {
+        while let Some(ExpressionInProgress::LHS {
             operator: _,
             lhs: _,
             rhs: _,
@@ -242,7 +240,7 @@ fn compose_binary_expressions(
         }
     }
 
-    todo!()
+    Err(anyhow!("Failed to compose expression, no complete expression found on composition stack. Composition stack: {:?}", stack))
 }
 
 /// Converts a sequence of symbols in infix notation to postfix notation
@@ -262,7 +260,7 @@ fn shunting_yard_algorithm(symbols: Vec<ParsedSymbol>) -> Result<Vec<ParsedSymbo
                 ))?;
 
                 while let Some(&top) = operator_stack.last() {
-                    while top
+                    if top
                         .operator
                         .binary_precedence()
                         .expect("Illegal operator on shunting yard stack")
@@ -276,10 +274,14 @@ fn shunting_yard_algorithm(symbols: Vec<ParsedSymbol>) -> Result<Vec<ParsedSymbo
                         operator_stack.pop();
                     }
                 }
+                operator_stack.push(ParsedOperator {
+                    operator: op,
+                    start: parsed_symbol.start,
+                    end: parsed_symbol.end,
+                });
             }
         }
     }
-
     for operator in operator_stack.iter().rev() {
         output.push(ParsedSymbol {
             start: operator.start,
@@ -334,6 +336,7 @@ fn wrap(expr: ExprTree, unary_operator: ParsedOperator) -> Result<ExprTree> {
     }
 }
 
+#[derive(Debug)]
 enum ExpressionInProgress {
     Operator {
         operator: ParsedOperator,
