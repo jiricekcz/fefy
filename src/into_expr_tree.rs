@@ -1,9 +1,10 @@
-use std::{collections::HashMap, fmt::Display, ops::Index};
+use std::fmt::Display;
 
 use anyhow::{anyhow, Result};
 use fef::v0::{
     expr::{
-        Expr, ExprBinaryFloat64Literal, ExprNegation, ExprSignedIntLiteral, ExprTree,
+        Expr, ExprAddition, ExprBinaryFloat64Literal, ExprDivision, ExprIntDivision, ExprModulo,
+        ExprMultiplication, ExprNegation, ExprSignedIntLiteral, ExprSubtraction, ExprTree,
         ExprUnsignedIntLiteral, ExprVariable,
     },
     raw::VariableLengthEnum,
@@ -21,13 +22,20 @@ pub(crate) fn into_expr_tree(
         .into_iter()
         .map(|s| Some(s))
         .collect::<Vec<_>>();
+    println!("Symbols {:?}", symbols);
 
     // Removes all unary operators by composing them with their operands
     compose_unary_expressions(&mut symbols)?;
+    println!("Symbols after unary expressions {:?}", symbols);
+    // Covert infix notation to postfix notation
+    let postfix_symbols =
+        shunting_yard_algorithm(symbols.into_iter().map(|o| o.expect("Cleaned")).collect())?;
 
-    // Binary operators - they have the second highest precedence (no others are defined)
+    println!("Postfix symbols {:?}", postfix_symbols);
 
-    todo!()
+    let expr = compose_binary_expressions(postfix_symbols.into_iter())?;
+
+    Ok(expr)
 }
 
 /// Converts a sequence of tokens into a sequence of symbols.
@@ -171,7 +179,71 @@ fn compose_unary_expressions(symbols: &mut Vec<Option<ParsedSymbol>>) -> Result<
 }
 
 /// Composes all binary expressions in the sequence of symbols
-fn compose_binary_expressions(symbols: Vec<Option<ParsedSymbol>>) -> Result<ExprTree> {}
+fn compose_binary_expressions(
+    postfix_symbols: impl DoubleEndedIterator<Item = ParsedSymbol>,
+) -> Result<ExprTree> {
+    let mut stack: Vec<ExpressionInProgress> = Vec::new();
+
+    for parsed_symbol in postfix_symbols.rev() {
+        let add: Option<ExpressionInProgress> = match stack.last_mut() {
+            None =>
+            // No state in progress
+            {
+                match parsed_symbol.symbol {
+                    Symbol::Operator(o) => {
+                        stack.push(ExpressionInProgress::Operator {
+                            operator: ParsedOperator {
+                                operator: o,
+                                start: parsed_symbol.start,
+                                end: parsed_symbol.end,
+                            },
+                        });
+                        None
+                    }
+                    _ => {
+                        return Err(anyhow!(
+                            "Expected operator at {}-{} found expression after converting to postfix notation",
+                            parsed_symbol.start,
+                            parsed_symbol.end
+                        ));
+                    }
+                }
+            }
+            Some(in_progress) => match parsed_symbol.symbol {
+                Symbol::Operator(o) => Some(ExpressionInProgress::Operator {
+                    operator: ParsedOperator {
+                        operator: o,
+                        end: parsed_symbol.end,
+                        start: parsed_symbol.start,
+                    },
+                }),
+                Symbol::Operand(expr) => {
+                    in_progress.add_operand(expr);
+                    None
+                }
+            },
+        };
+
+        if let Some(add) = add {
+            stack.push(add);
+        }
+        if let Some(ExpressionInProgress::LHS {
+            operator: _,
+            lhs: _,
+            rhs: _,
+        }) = stack.last()
+        {
+            let in_progress = stack.pop().expect("Stack not empty");
+            let expr = in_progress.compose_into()?;
+            match stack.last_mut() {
+                None => return Ok(expr),
+                Some(in_progress) => in_progress.add_operand(expr),
+            }
+        }
+    }
+
+    todo!()
+}
 
 /// Converts a sequence of symbols in infix notation to postfix notation
 fn shunting_yard_algorithm(symbols: Vec<ParsedSymbol>) -> Result<Vec<ParsedSymbol>> {
@@ -224,6 +296,26 @@ fn to_cleaned_symbols<S>(symbols: &mut Vec<Option<S>>) -> () {
     symbols.retain(|s| s.is_some());
 }
 
+fn compose_expression(operator: ParsedOperator, lhs: ExprTree, rhs: ExprTree) -> Result<ExprTree> {
+    let e: Expr<ExprTree> = match operator.operator {
+        Operator::Asterisk => ExprMultiplication::from((lhs, rhs)).into(),
+        Operator::Slash => ExprDivision::from((lhs, rhs)).into(),
+        Operator::DoubleSlash => ExprIntDivision::from((lhs, rhs)).into(),
+        Operator::Minus => ExprSubtraction::from((lhs, rhs)).into(),
+        Operator::Plus => ExprAddition::from((lhs, rhs)).into(),
+        Operator::Percent => ExprModulo::from((lhs, rhs)).into(),
+        _ => {
+            return Err(anyhow!(
+                "Illegal use of \"{}\" as binary operator at {}-{}",
+                operator.operator,
+                operator.start,
+                operator.end
+            ))
+        }
+    };
+    Ok(e.into())
+}
+
 fn wrap(expr: ExprTree, unary_operator: ParsedOperator) -> Result<ExprTree> {
     match unary_operator.operator {
         Operator::Plus => Ok(expr),
@@ -241,6 +333,63 @@ fn wrap(expr: ExprTree, unary_operator: ParsedOperator) -> Result<ExprTree> {
         }
     }
 }
+
+enum ExpressionInProgress {
+    Operator {
+        operator: ParsedOperator,
+    },
+    RHS {
+        operator: ParsedOperator,
+        rhs: ExprTree,
+    },
+    LHS {
+        operator: ParsedOperator,
+        lhs: ExprTree,
+        rhs: ExprTree,
+    },
+}
+
+impl ExpressionInProgress {
+    /// Adds an operand to the expression in progress
+    ///
+    /// # Panics
+    /// Panics if the expression is already complete
+    pub(crate) fn add_operand(&mut self, operand: ExprTree) -> () {
+        *self = match self {
+            ExpressionInProgress::Operator { operator } => ExpressionInProgress::RHS {
+                operator: *operator,
+                rhs: operand,
+            },
+            ExpressionInProgress::RHS { operator, rhs } => ExpressionInProgress::LHS {
+                operator: *operator,
+                lhs: operand,
+                rhs: rhs.clone(),
+            },
+            _ => panic!("Attempted to add operand to completed expression"),
+        }
+    }
+
+    /// Composes the expression in progress into an expression tree
+    ///
+    /// # Panics
+    /// Panics if the expression is incomplete
+    pub(crate) fn compose_into(self) -> Result<ExprTree> {
+        match self {
+            ExpressionInProgress::Operator { operator: _ } => {
+                panic!("Attempted to compose incomplete expression")
+            }
+            ExpressionInProgress::RHS {
+                operator: _,
+                rhs: _,
+            } => {
+                panic!("Attempted to compose incomplete expression")
+            }
+            ExpressionInProgress::LHS { operator, lhs, rhs } => {
+                compose_expression(operator, lhs, rhs)
+            }
+        }
+    }
+}
 #[derive(Debug, PartialEq, Eq)]
 enum Expecting {
     Operator,
@@ -253,11 +402,15 @@ struct ParsedOperator {
     start: usize,
     end: usize,
 }
+
+#[derive(Debug)]
 struct ParsedSymbol {
     symbol: Symbol,
     start: usize,
     end: usize,
 }
+
+#[derive(Debug)]
 pub(crate) enum Symbol {
     Operand(ExprTree),
     Operator(Operator),
