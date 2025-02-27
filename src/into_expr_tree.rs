@@ -272,6 +272,8 @@ fn shunting_yard_algorithm(symbols: Vec<ParsedSymbol>) -> Result<Vec<ParsedSymbo
                             symbol: Symbol::Operator(top.operator),
                         });
                         operator_stack.pop();
+                    } else {
+                        break;
                     }
                 }
                 operator_stack.push(ParsedOperator {
