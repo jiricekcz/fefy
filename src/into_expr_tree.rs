@@ -395,6 +395,7 @@ impl ExpressionInProgress {
         }
     }
 }
+
 #[derive(Debug, PartialEq, Eq)]
 enum Expecting {
     Operator,
@@ -420,6 +421,7 @@ pub(crate) enum Symbol {
     Operand(ExprTree),
     Operator(Operator),
 }
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum Operator {
     Plus,
@@ -463,6 +465,7 @@ impl Display for Operator {
         write!(f, "{}", s)
     }
 }
+
 impl Operator {
     pub(crate) fn binary_precedence(&self) -> Option<usize> {
         match self {
