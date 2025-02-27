@@ -3,8 +3,12 @@ use into_expr_tree::into_expr_tree;
 
 mod arguments;
 mod cl_tools;
+mod evaluate_fef_stream;
 mod into_expr_tree;
 mod parser;
+mod query_for_variable_values;
+mod tasks;
+mod write_as_fef;
 
 fn main() -> Result<()> {
     println!("Enter expression:");
