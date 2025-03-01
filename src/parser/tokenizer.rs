@@ -140,7 +140,14 @@ impl<C: Iterator<Item = char>> Tokens<C> {
         let token = match self.next_char().expect("peek_char returned Some") {
             '+' => Token::Plus,
             '-' => Token::Minus,
-            '*' => Token::Asterisk,
+            '*' => {
+                if self.peek_char() == Some(&'*') {
+                    self.next_char();
+                    Token::DoubleAsterisk
+                } else {
+                    Token::Asterisk
+                }
+            }
             '/' => {
                 if self.peek_char() == Some(&'/') {
                     self.next_char();

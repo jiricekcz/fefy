@@ -4,8 +4,8 @@ use anyhow::{anyhow, Result};
 use fef::v0::{
     expr::{
         Expr, ExprAddition, ExprBinaryFloat64Literal, ExprDivision, ExprIntDivision, ExprModulo,
-        ExprMultiplication, ExprNegation, ExprSignedIntLiteral, ExprSubtraction, ExprTree,
-        ExprUnsignedIntLiteral, ExprVariable,
+        ExprMultiplication, ExprNegation, ExprPower, ExprSignedIntLiteral, ExprSubtraction,
+        ExprTree, ExprUnsignedIntLiteral, ExprVariable,
     },
     raw::VariableLengthEnum,
 };
@@ -63,6 +63,7 @@ fn into_symbols(
             Token::Plus => Symbol::Operator(Operator::Plus),
             Token::Slash => Symbol::Operator(Operator::Slash),
             Token::Period => Symbol::Operator(Operator::Period),
+            Token::DoubleAsterisk => Symbol::Operator(Operator::DoubleAsterisk),
 
             Token::BoolLiteral(b) => {
                 let number: u64 = if b { 1 } else { 0 };
@@ -308,6 +309,8 @@ fn compose_expression(operator: ParsedOperator, lhs: ExprTree, rhs: ExprTree) ->
         Operator::Minus => ExprSubtraction::from((lhs, rhs)).into(),
         Operator::Plus => ExprAddition::from((lhs, rhs)).into(),
         Operator::Percent => ExprModulo::from((lhs, rhs)).into(),
+        Operator::Caret => ExprPower::from((lhs, rhs)).into(),
+        Operator::DoubleAsterisk => ExprPower::from((lhs, rhs)).into(),
         _ => {
             return Err(anyhow!(
                 "Illegal use of \"{}\" as binary operator at {}-{}",
@@ -429,6 +432,7 @@ pub(crate) enum Operator {
     Asterisk,
     Slash,
     DoubleSlash,
+    DoubleAsterisk,
     Backslash,
     Percent,
     Caret,
@@ -450,6 +454,7 @@ impl Display for Operator {
             Operator::Asterisk => "*",
             Operator::Slash => "/",
             Operator::DoubleSlash => "//",
+            Operator::DoubleAsterisk => "**",
             Operator::Backslash => "\\",
             Operator::Percent => "%",
             Operator::Caret => "^",
@@ -473,6 +478,8 @@ impl Operator {
             Operator::Asterisk | Operator::Slash | Operator::DoubleSlash | Operator::Percent => {
                 Some(2)
             }
+            Operator::DoubleAsterisk | Operator::Caret => Some(3),
+
             _ => None,
         }
     }

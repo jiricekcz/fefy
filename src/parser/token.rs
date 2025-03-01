@@ -11,6 +11,7 @@ pub(crate) enum Token {
     Asterisk,
     Slash,
     DoubleSlash,
+    DoubleAsterisk,
     Backslash,
     Percent,
     Caret,
