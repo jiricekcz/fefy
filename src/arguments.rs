@@ -30,4 +30,8 @@ pub struct Create {
     /// The path to and the name of the created fef file
     #[clap(short, long)]
     pub output: PathBuf,
+
+    /// Path to a string formula file
+    #[clap(short, long)]
+    pub input: Option<PathBuf>,
 }

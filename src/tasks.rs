@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, io::Write, path::Path};
+use std::{
+    collections::BTreeMap,
+    io::{BufReader, Read, Write},
+    path::Path,
+};
 
 use anyhow::{bail, Context, Result};
 use fef::v0::{
@@ -38,8 +42,35 @@ pub(crate) fn write_to_file_from_stdin(file: &Path) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn write_to_file_from_file(in_file: &Path, out_file: &Path) -> Result<()> {
+    let mut write_stream = std::fs::File::create(out_file)?;
+
+    let name = {
+        print!("Enter name for formula:");
+
+        crate::cl_tools::read_line()
+    }
+    .trim()
+    .to_string();
+
+    let name = if name.is_empty() { None } else { Some(name) };
+
+    let mut formula: String = String::new();
+
+    std::fs::File::open(in_file)?.read_to_string(&mut formula)?;
+
+    let input_chars = formula.chars();
+    let mut tokens = crate::parser::Tokens::new(input_chars);
+
+    crate::write_as_fef::write_tokens_as_fef_to_stream(&mut tokens, &mut write_stream, name)?;
+
+    write_stream.flush()?;
+
+    Ok(())
+}
+
 pub(crate) fn evaluate_from_file(file: &Path) -> Result<()> {
-    let mut read_stream = std::fs::File::open(file)?;
+    let mut read_stream = BufReader::new(std::fs::File::open(file)?);
 
     let version: usize = VariableLengthEnum::read_from(&mut read_stream, &DEFAULT_CONFIG)
         .context("Reading version from file.")?
