@@ -183,6 +183,8 @@ fn compose_binary_expressions(
 ) -> Result<ExprTree> {
     let mut stack: Vec<ExpressionInProgress> = Vec::new();
 
+    let mut found_expr: Option<ExprTree> = None;
+
     for parsed_symbol in postfix_symbols.rev() {
         let add: Option<ExpressionInProgress> = match stack.last_mut() {
             None =>
@@ -199,12 +201,15 @@ fn compose_binary_expressions(
                         });
                         None
                     }
-                    _ => {
-                        return Err(anyhow!(
-                            "Expected operator at {}-{} found expression after converting to postfix notation",
-                            parsed_symbol.start,
-                            parsed_symbol.end
-                        ));
+                    Symbol::Operand(expr) => {
+                        if found_expr.is_some() {
+                            return Err(anyhow!(
+                                "Found more than one expression in postfix expression"
+                            ));
+                        } else {
+                            found_expr = Some(expr);
+                            break;
+                        }
                     }
                 }
             }
@@ -238,6 +243,16 @@ fn compose_binary_expressions(
                 None => return Ok(expr),
                 Some(in_progress) => in_progress.add_operand(expr),
             }
+        }
+    }
+
+    if let Some(expr) = found_expr {
+        if stack.is_empty() {
+            return Ok(expr);
+        } else {
+            return Err(anyhow!(
+                    "Found expression before all operators were consumed after converting to postfix notation"
+                ));
         }
     }
 

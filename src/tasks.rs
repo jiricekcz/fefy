@@ -113,9 +113,7 @@ pub(crate) fn evaluate_from_file(file: &Path) -> Result<()> {
         variable_values.insert(variable_identifier.to_owned().clone(), value);
     }
 
-    if variable_names.len() > 0 {
-        println!("============================================================");
-    }
+    println!("============================================================");
 
     let result =
         crate::evaluate_fef_stream::evaluate_stream_as_fef_expr(&mut read_stream, variable_values);
@@ -128,6 +126,8 @@ pub(crate) fn evaluate_from_file(file: &Path) -> Result<()> {
             eprintln!("Error: {}", e);
         }
     }
+
+    println!("============================================================");
 
     Ok(())
 }
